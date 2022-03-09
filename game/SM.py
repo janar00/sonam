@@ -1,5 +1,59 @@
 """SõnaMäng game logic."""
+import random
+
 all_letters = 'QWERTYUIOPÜÕASDFGHJKLÖÄZXCVBNMŠŽ'
+
+
+class SMOrganizer:
+    """Class that will create games of SM."""
+
+    def __init__(self):
+        self.games = {}
+        self.word_lists = {}
+        self.read_word_lists()
+
+    def read_word_lists(self):
+        """
+        Read in word lists from files.
+
+        It first reads index.txt for a list of word lists.
+        In index.txt each line is formatted like: filename,list_name
+        Each list contains valid words, separated by newlines.
+        """
+        lists = []
+        word_lists = {}
+        with open('../words/index.txt', encoding='utf-8') as file:
+            for line in file:
+                lists.append(line.strip())
+        for word_list in lists:
+            file_name, list_name = word_list.split(',')
+            words = []
+            with open('../words/' + file_name, encoding='utf-8') as file:
+                for line in file:
+                    words.append(line.strip())
+            word_lists[list_name] = words
+        self.word_lists = word_lists
+
+    def get_random_word(self, list_name) -> tuple:
+        """
+        Get a random word from a given word list.
+        If no such list exists, fall back to something else.
+
+        :param list_name: word list to look for
+        :return: a tuple of list name and a word from that list
+        """
+        if list_name in self.word_lists:
+            return list_name, random.choice(self.word_lists[list_name])
+        return 'backup', 'puudu'
+
+    def new_game(self, key, list_name):
+        """
+        Create a new game with a random word.
+        :param key: Key used for accessing the game
+        :param list_name: word list to use for game
+        """
+        list_name, word = self.get_random_word(list_name)
+        self.games[key] = SMGame(word)
 
 
 class SMGame:
@@ -73,6 +127,8 @@ class SMGame:
 
 
 if __name__ == '__main__':
-    game = SMGame('kruus')
-    while not game.done:
-        game.guess(input('pakkumine: '))
+    game = SMOrganizer()
+    game.new_game(0, 'testlist')
+    inner_game = game.games[0]
+    while not inner_game.done:
+        inner_game.guess(input('pakkumine: '))
