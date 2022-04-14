@@ -1,1 +1,16 @@
-test.txt,testlist
+file_name,unused_letters,list_name
+lemmad/lemmad-4.txt,CQWXYZ,eesti-4
+lemmad/lemmad-5.txt,CQWXYZ,eesti-5
+lemmad/lemmad-6.txt,CQWXYZ,eesti-6
+lemmad/lemmad-7.txt,CQWXYZ,eesti-7
+lemmad/lemmad-8.txt,CQWXYZ,eesti-8
+lemmad/lemmad-9.txt,CQWXYZ,eesti-9
+lemmad/lemmad-10.txt,CQWXYZ,eesti-10
+lemmad/lemmad-11.txt,CQWXYZ,eesti-11
+lemmad/lemmad-12.txt,CQWXYZ,eesti-12
+lemmad/lemmad-13.txt,CQWXYZ,eesti-13
+lemmad/lemmad-14.txt,CQWXYZ,eesti-14
+lemmad/lemmad-15.txt,CQWXYZ,eesti-15
+lemmad/lemmad-16.txt,CQWXYZ,eesti-16
+lemmad/lemmad-17.txt,CQWXYZ,eesti-17
+lemmad/lemmad-18.txt,CQWXYZ,eesti-18
