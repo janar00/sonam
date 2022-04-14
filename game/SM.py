@@ -138,7 +138,7 @@ class SMGame:
         printable += guess + '\n' + self.prettify_result(result)
         printable += '\n' + self.prettify_result(self.print_known_letters())
 
-        if result == 5 * GREEN:
+        if result == len(self.password) * GREEN:
             self.done = True
             printable += '\n\n' + self.print_final()
         return printable
