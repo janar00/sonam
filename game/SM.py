@@ -31,7 +31,7 @@ class SMOrganizer:
         unused_letters_dict = {}
         with open('../words/index.txt', encoding='utf-8') as file:
             if file.readline() != 'file_name,unused_letters,list_name\n':
-                raise AssertionError('vale faili index.txt esimene rida')
+                raise AssertionError('vale faili index.txt esimene rida, see peaks olema file_name,unused_letters,list_name')
             for line in file:
                 lists.append(line.strip())
         for word_list in lists:

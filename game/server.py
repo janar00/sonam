@@ -1,5 +1,6 @@
 """Connection to Discord."""
 import discord
+from os.path import exists
 import pickle
 from SM import SMOrganizer, GREEN2, YELLOW2, GREY2
 
@@ -31,12 +32,19 @@ game_channels_path = '../discord_data/game_channels.bin'
 token_path = '../discord_data/token.txt'
 
 # Load in list of channels where games can be played
-with open(game_channels_path, 'rb') as file:
-    game_channels: set = pickle.load(file)
+if exists(game_channels_path):
+    with open(game_channels_path, 'rb') as file:
+        game_channels: set = pickle.load(file)
+else:
+    print('Mängukanalite fail puudub, alustan tühja nimekirjaga.')
+    game_channels = set()
 
 # Load in secret token for logging in
-with open(token_path) as file:
-    token = file.read()
+if exists(token_path):
+    with open(token_path) as file:
+        token = file.read()
+else:
+    raise FileNotFoundError('discord_data/token.txt puudub, lisa see fail ja pane selle sisuks Discordi bot token')
 
 game = SMOrganizer()
 intents = discord.Intents.default()
