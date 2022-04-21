@@ -1,24 +1,23 @@
 """Connection to Discord."""
-import discord
+import disnake as discord
+from disnake.ext import commands
 from os.path import exists
 import pickle
 from SM import SMOrganizer, GREEN2, YELLOW2, GREY2
 
-help_message = """Sõnam abi:
-`!pakid` - loetle saadaval olevad pakid
-`!uus [paki nimi]` - Alusta uut mängu valitud pakiga
-`!paku *pakkumine*` - Tee pakkumine praeguses mängus
+# This class name is way too long
+Inter = discord.ApplicationCommandInteraction  # any slash command
+GInter = discord.GuildCommandInteraction  # only in guilds
 
-Mänge saab mängida vaid määratud kanalites.
+permission_error = "Sul pole õigus siin seda käsku kasutada!"
 
-Serveri omaniku käsud:
-`!abi` - Kuva see abisõnum
-`!reeglid` - Kuva mängu reeglid
-`!lisakanal [kanali_id]` - Määra kanal mängukanaliks
-`!eemaldakanal [kanali_id]` - Ebamäära kanal mängukanaliks
-"""
+help_message = f"""**Sõnam põhiliste käskude näited:**
+`/uus` - Alusta uut mängu tavalise pakiga
+`/uus eesti-11` - Alusta uut mängu pakiga eesti-11 (ehk eesti keeles ja 11 tähega sõna)
+`/paku temperatuur` - Tee praeguses mängus pakkumine "temperatuur"
 
-rules_message = f"""Sõnam reeglid:
+**Sõnam reeglid:**
+Robot valib ühe sõna, mille sina pead ära arvama.
 Paku õige sõna võimalikult väheste käikudega.
 
 Iga pakkumine peab olema sõnastikus esinev sõna.
@@ -26,6 +25,50 @@ Iga pakkumise kohta annab mäng infot läbi tähemärkide.
 {GREEN2} - täht on õiges kohas
 {YELLOW2} - täht esineb sõnas, aga kuskil mujal
 {GREY2} - täht ei esine sõnas
+
+Mänge saab mängida vaid määratud kanalites.
+Igas kanalis saab korraga toimuda üks mäng, see on kõigi vahel jagatud.
+Mängida on võimalik vaid siis, kui SM-Bot on sisselogitud, üldiselt ta öösel tudub. 
+
+**Sõnam käskude kirjeldus:**
+Arvesta, et Discord proovib sind aidata käskudega.
+Näiteks kui trükid sisse, `/p` ja vajutad Enter, peaks automaatselt minema kirja `/paku`
+Eriti kasulik on see uue mängu puhul, kus ainult tähtede arvu kirjutamisel pakutakse õige nimi.
+
+Järgnevates käskudes täida sulgude sees olev osa vastava sisuga. Ära kirjuta sulge välja!
+Kui selle ümber on <noolsulud>, siis on see kohustuslik.
+Kui selle ümber on [nurksulud], siis ei ole see kohustuslik.
+
+`/uus [paki nimi]` - Alusta uut mängu valitud pakiga
+(Pakk on sõnastik, millest valitakse vastus) 
+(Kui ei kirjuta midagi, siis tuleb tavaline pakk)
+(Kui kirjutad osa nimest, siis valitakse suvaline nende vahelt, milles see sisaldub)
+(Kui kirjutad vale nime, siis tuleb suvaline pakk)
+
+`/paku <pakkumine>` - Tee pakkumine praeguses mängus
+`/mis_sa_arvad` - Robot vastab sulle ühe sõnaga, mis sobiks pakkumiseks
+`/ajalugu` - Kuva pakkumiste ajalugu
+`/rohelised` - Kuva kõik tähed, mille asukoht on kindlalt teada
+`/annan_alla <kinnitus>` - Annab ette vastuse kui sa oled juba piisavalt pakkumisi teinud, kinnitus on "ma ei suuda enam, palun lõpetame selle tralli ära"
+
+`/abi` - Kuva see abisõnum
+`/abi2` - Kuva muude käskude abisõnum
+`/kuvapakid` - loetle saadaval olevad pakid
+"""
+
+help2_message = """**Muud käsud:**
+`/muuda raskus <True/False>` - Kas mäng on Raskes režiimis (ehk sa pead iga pakkumine kasutama teadaolevaid kollaseid/rohelisi tähti)
+`/muuda kontroll <True/False>` - Kas mäng kontrollib sõnastikust sinu pakkumist
+`/muuda uus_pakk <paku nimi>` - Milline pakk valitakse kui ei anna /uus käsuga midagi kaasa
+`/muuda emoji_kasutus [True/False]` - Kas mäng näitab tulemust emojidega või tähtedega `./*`
+`/muuda <emoji_hall / emoji_kollane / emoji_roheline> [Emoji]` - Muuda tulemustes näidatavat vastavat emojit, tühjaks jättes taastatakse tavaline
+
+`/vaata <raskus / kontroll / uus_pakk / emoji_kasutus / emoji_list>` - Kuva vastava sätte seisu
+
+Käsud `Manage Channels` õigusega kasutajatele:
+`/abi` ja `/abi2` on kuvatavad igas kanalis nende poolt
+`/kanal_lisa [kanali id]` - Määra kanal mängukanaliks
+`/kanal_eemalda [kanali id]` - Ebamäära kanal mängukanaliks
 """
 
 game_channels_path = '../discord_data/game_channels.bin'
@@ -47,99 +90,305 @@ else:
     raise FileNotFoundError('discord_data/token.txt puudub, lisa see fail ja pane selle sisuks Discordi bot token')
 
 game = SMOrganizer()
-intents = discord.Intents.default()
-intents.members = True  # Needed for checking guild owner
-client = discord.Client(intents=intents)
+bot = commands.InteractionBot(test_guilds=[928303868176138290, 958043104441675846])
+# If test guilds are given, then commands only work there
+# If not test guilds, then updating commands globally takes like an hour according to some documentation
 
 
-def check_channel_id(message: discord.Message) -> tuple:
-    """Check if an id given in a second part of a message is correct and in the same guild as the message."""
-    channel_id = message.content.split()[1]
-    if not channel_id.isdigit():
-        return 0, 'kanali id on ebakorrektne!'
-    channel_id = int(channel_id)
-    if not message.guild.get_channel(channel_id):
-        return 0, 'Sellise id-ga kanalit ei leitud siit serverist!'
-    return channel_id, ''
+async def autocomplete_packs(inter: Inter, user_input: str):
+    return [pack for pack in game.word_lists.keys() if user_input.lower() in pack]
 
 
-@client.event
+def check_channel(inter: GInter, channel: discord.TextChannel):
+    """Check if channel exists in server."""
+    if not channel:
+        return inter.channel
+    if not inter.guild == channel.guild:
+        # This may be always false, it seems discord only allows correct channels through
+        return None
+    return channel
+
+
+@bot.event
 async def on_ready():
     """Will activate when logged in and ready to read messages."""
+    print('Sõnam Server 2.0.1')
     print('Sain sisse logitud')
-    print('Kasutajanimi:', client.user)
+    print('Kasutajanimi:', bot.user, '\n')
 
 
-@client.event
-async def on_message(message: discord.Message):
-    """Will activate when a message is sent in a server."""
-    if message.author == client.user:
+@bot.slash_command(
+    name='abi',
+    description='Kuva abisõnum'
+)
+async def abi(inter: GInter):
+    if inter.channel_id in game_channels or inter.permissions.manage_channels:
+        await inter.send(help_message)
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    description='Kuva muude käskude abisõnum'
+)
+async def abi2(inter: GInter):
+    if inter.channel_id in game_channels or inter.permissions.manage_channels:
+        await inter.send(help2_message)
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    name='kuvapakid',
+    description='Näita olemasolevaid pakke'
+)
+async def kuvapakid(inter: GInter):
+    if inter.channel_id in game_channels:
+        await inter.send(game.get_word_lists())
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    name='uus',
+    description='Alusta uut mängu'
+)
+async def uus(
+        inter: GInter,
+        paki_nimi: str = commands.Param(autocomplete=autocomplete_packs, default='')
+):
+    if inter.channel_id in game_channels:
+        print('Uus mäng:', inter.author.name)
+        await inter.send(game.new_game(inter.channel_id, paki_nimi))
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    name='paku',
+    description='Tee pakkumine praeguses mängus'
+)
+async def paku(inter: GInter, pakkumine: str):
+    if inter.channel_id in game_channels:
+        print('Pakkumine:', inter.author.name)
+        await inter.send(game.guess(inter.channel_id, pakkumine))
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    name='mis_sa_arvad',
+    description='Mäng annab soovituse, mida pakkuda'
+)
+async def mis_sa_arvad(inter: GInter):
+    if inter.channel_id in game_channels:
+        await inter.send(game.get_guess(inter.channel_id))
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    name='ajalugu',
+    description='Kuva pakkumiste ajalugu'
+)
+async def ajalugu(inter: GInter):
+    if inter.channel_id in game_channels:
+        await inter.send(game.history(inter.channel_id))
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command(
+    name='rohelised',
+    description='Kuva kõik tähed, mis asuvad juba õiges kohas'
+)
+async def rohelised(inter: GInter):
+    if inter.channel_id in game_channels:
+        await inter.send(game.greens(inter.channel_id))
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command()
+async def annan_alla(inter: GInter, *, kinnitus: str):
+    """Anna alla ja lõpeta ära praegune mäng.
+
+    Parameters
+    ----------
+    kinnitus: kinnitus peab olema "ma ei suuda enam, palun lõpetame selle tralli ära"
+    """
+    if inter.channel_id in game_channels:
+        await inter.send(game.give_up(inter.channel_id, kinnitus))
+    else:
+        await inter.send(permission_error, delete_after=10)
+
+
+@bot.slash_command()
+async def muuda(inter: GInter): pass
+
+
+@muuda.sub_command(
+    name='raskus',
+    description='Määra, kas mängida raskel režiimil või mitte'
+)
+async def raskus(inter: GInter, raske: bool):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
         return
+    await inter.send(game.set_data(inter.channel_id, 'hard_mode', raske))
 
-    if not message.guild:
-        # Direct Message
+
+@muuda.sub_command(
+    name='kontroll',
+    description='Määra, kas sõnu kontrollitakse sõnastikust'
+)
+async def kontroll(inter: GInter, kontroll: bool):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
         return
-
-    if message.channel.id in game_channels:
-        # Message was sent in a game channel
-        print('game')
-
-        if message.content == '!pakid':
-            await message.channel.send(game.get_word_lists())
-
-        elif message.content.startswith('!uus'):
-            print('uus mäng:', message.author.name)
-            await message.channel.send(game.new_game(message.channel.id, message.content[4:].strip()))
-
-        elif message.content.startswith('!paku '):
-            print('pakkumine:', message.author.name)
-            guess = message.content.split()[1]
-            await message.channel.send(game.games[message.channel.id].guess(guess))
-
-    if message.author == message.guild.owner:
-        # Message was sent by the owner of the server
-        print('owner')
-
-        change = False
-
-        if message.content == '!abi':
-            await message.channel.send(help_message)
-        elif message.content == '!reeglid':
-            await message.channel.send(rules_message)
-
-        elif message.content.startswith('!lisakanal'):
-            if len(message.content.split()) == 2:
-                channel_id, msg = check_channel_id(message)
-                if msg:
-                    await message.channel.send(msg)
-                    return
-            else:
-                channel_id = message.channel.id
-
-            if channel_id:
-                print('kanal lisatud:', channel_id)
-                await message.channel.send('Kanal lisatud!')
-                game_channels.add(channel_id)
-                change = True
-
-        elif message.content.startswith('!eemaldakanal'):
-            if len(message.content.split()) == 2:
-                channel_id, msg = check_channel_id(message)
-                if msg:
-                    await message.channel.send(msg)
-                    return
-            else:
-                channel_id = message.channel.id
-
-            if channel_id:
-                print('kanal eemaldatud:', channel_id)
-                await message.channel.send('Kanal eemaldatud!')
-                game_channels.discard(channel_id)
-                change = True
-
-        if change:
-            with open(game_channels_path, 'wb') as file:
-                pickle.dump(game_channels, file)
+    await inter.send(game.set_data(inter.channel_id, 'dict_check', kontroll))
 
 
-client.run(token)
+@muuda.sub_command(
+    name='uus_pakk',
+    description='Määra, millise pakiga alustatakse tavaliselt uut mängu'
+)
+async def uus_pakk(inter: GInter, paki_nimi: str):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    await inter.send(game.set_data(inter.channel_id, 'default_word_list', paki_nimi))
+
+
+@muuda.sub_command(
+    name='emoji_kasutus',
+    description='Määra, kas mängus kasutatakse emojisid (või märke ./*)'
+)
+async def emoji_kasutus(inter: GInter, emoji: bool = True):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    await inter.send(game.set_data(inter.channel_id, 'pretty_format', emoji))
+
+
+@muuda.sub_command(
+    name='emoji_hall',
+    description='Määra, millise emojiga märgitakse valed tähed'
+)
+async def emoji_hall(inter: GInter, emoji: str = GREY2):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    await inter.send(game.set_data(inter.channel_id, 'grey2', emoji))
+
+
+@muuda.sub_command(
+    name='emoji_kollane',
+    description='Määra, millise emojiga märgitakse vales kohas tähed'
+)
+async def emoji_kollane(inter: GInter, emoji: str = YELLOW2):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    await inter.send(game.set_data(inter.channel_id, 'yellow2', emoji))
+
+
+@muuda.sub_command(
+    name='emoji_roheline',
+    description='Määra, millise emojiga märgitakse õiged tähed'
+)
+async def emoji_roheline(inter: GInter, emoji: str = GREEN2):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    await inter.send(game.set_data(inter.channel_id, 'green2', emoji))
+
+
+@bot.slash_command()
+async def vaata(inter: GInter): pass
+
+
+@vaata.sub_command(
+    description='Vaata praegust mängu raskusastet'
+)
+async def raskus(inter: GInter):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+    await inter.send(game.get_data(inter.channel_id, 'hard_mode'))
+
+
+@vaata.sub_command(
+    description='Vaata praegust sõnastikukontrolli seisu'
+)
+async def kontroll(inter: GInter):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+    await inter.send(game.get_data(inter.channel_id, 'dict_check'))
+
+
+@vaata.sub_command(
+    description='Vaata praegust tavalist uue mängu sõnastikku'
+)
+async def uus_pakk(inter: GInter):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+    await inter.send(game.get_data(inter.channel_id, 'default_word_list'))
+
+
+@vaata.sub_command(
+    description='Vaata, kas mäng kasutab emojisid (või märke ./*'
+)
+async def emoji_kasutus(inter: GInter):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+    await inter.send(game.get_data(inter.channel_id, 'pretty_format'))
+
+
+@vaata.sub_command(
+    description='Vaata mängu märgiseid'
+)
+async def emoji_list(inter: GInter):
+    if inter.channel_id not in game_channels:
+        await inter.send(permission_error, delete_after=10)
+    await inter.send(game.get_data(inter.channel_id, 'emoji_list'))
+
+
+@bot.slash_command(
+    name='kanal_lisa',
+    description='Määra kanal mängukanaliks'
+)
+async def kanal_lisa(inter: GInter, kanal: discord.TextChannel = None):
+    if not inter.permissions.manage_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    channel = check_channel(inter, kanal)
+    if not channel:
+        await inter.send('Sellist kanalit ei leitud!')
+        return
+    await inter.send(f'Kanal lisatud: {channel.name}')
+    print(f'Kanal lisatud: {channel.name}')
+    game_channels.add(channel.id)
+    with open(game_channels_path, 'wb') as file:
+        pickle.dump(game_channels, file)
+
+
+@bot.slash_command(
+    name='kanal_eemalda',
+    description='Ebamäära kanal mängukanaliks'
+)
+async def kanal_eemalda(inter: GInter, kanal: discord.TextChannel = None):
+    if not inter.permissions.manage_channels:
+        await inter.send(permission_error, delete_after=10)
+        return
+    channel = check_channel(inter, kanal)
+    if not channel:
+        await inter.send('Sellist kanalit ei leitud!')
+        return
+    await inter.send(f'Kanal eemaldatud: {channel.name}')
+    print(f'Kanal eemaldatud: {channel.name}')
+    game_channels.discard(channel.id)
+    with open(game_channels_path, 'wb') as file:
+        pickle.dump(game_channels, file)
+
+
+bot.run(token)
