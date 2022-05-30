@@ -15,7 +15,7 @@ GREY2, YELLOW2, GREEN2 = "\U0001F90D", "\U0001F49B", "\U0001F49A"
 
 
 def check_emoji(emoji: str) -> bool:
-
+    """Check that an emoji candidate is correctly formatted."""
     return emoji not in './*_~>' and len(emoji) < 10
 
 
@@ -31,6 +31,7 @@ class SMOrganizer:
         self.read_word_lists()
 
     def read_datas(self):
+        """Read game settings from a file."""
         if exists(GAME_DATA_PATH):
             with open(GAME_DATA_PATH, 'rb') as file:
                 self.datas = pickle.load(file)
@@ -42,7 +43,7 @@ class SMOrganizer:
         Read in word lists from files.
 
         It first reads index.txt for a list of word lists.
-        In index.txt each line is formatted like: filename,list_name
+        In index.txt each line is formatted like: file_name,unused_letters,list_name
         Each list contains valid words, separated by newlines.
         """
         lists = []
@@ -88,6 +89,7 @@ class SMOrganizer:
     def new_game(self, key: int, list_name: str):
         """
         Create a new game with a random word.
+
         :param key: Key used for accessing the game
         :param list_name: word list to use for game
         """
@@ -108,6 +110,7 @@ class SMOrganizer:
     def guess(self, key: int, guess: str) -> str:
         """
         Play a move in the game.
+
         :param key: Key used for accessing the game
         :param guess: word guessed in the game
         :return: move result as a string
@@ -132,11 +135,13 @@ class SMOrganizer:
         return self.games[key].print_history()
 
     def greens(self, key: int) -> str:
+        """Show which letters are correctly placed (green)."""
         if key not in self.games:
             return 'Mängu ei leitud.'
         return self.games[key].print_greens()
 
     def give_up(self, key: int, msg: str) -> str:
+        """End the game early and show the answer."""
         if key not in self.games:
             return 'Mängu ei leitud.'
         if msg == "ma ei suuda enam, palun lõpetame selle tralli ära":
@@ -145,6 +150,14 @@ class SMOrganizer:
             return 'Vale kinnitus'
 
     def set_data(self, key_channel: int, key_data: str, value_data) -> str:
+        """
+        Change a setting in the given channel.
+
+        :param key_channel: Key used for accessing game (usually channel id)
+        :param key_data: Key for setting to be changed
+        :param value_data: Value to change the setting to
+        :return: Result of setting as a string
+        """
         data = self.datas.setdefault(key_channel, SMData())
         printable = ''
         if key_data == 'hard_mode':
@@ -185,6 +198,7 @@ class SMOrganizer:
         return 'Sätteid ei leitud.'
 
     def get_data(self, key_channel: int, key_data: str) -> str:
+        """Show what value a setting currently has."""
         data = self.datas.get(key_channel, None)
         if data:
             if key_data == 'hard_mode':
@@ -206,13 +220,13 @@ class SMData:
     """Class for storing settings for each channel."""
 
     def __init__(self):
-        self.dict_check = True
-        self.hard_mode = False
-        self.default_word_list = 'eesti'
-        self.pretty_format = True
-        self.grey2 = GREY2
-        self.yellow2 = YELLOW2
-        self.green2 = GREEN2
+        self.dict_check = True  # check if a guess in the game exists in the dictionary
+        self.hard_mode = False  # each guess must use information learned from the previous one
+        self.default_word_list = 'eesti'  # which list to use when /uus is used with no arguments
+        self.pretty_format = True  # use emojis to represent the answer
+        self.grey2 = GREY2  # emoji for incorrect letters
+        self.yellow2 = YELLOW2  # emoji for incorrectly placed letters
+        self.green2 = GREEN2  # emoji for correct letters
 
 
 class SMGame:
@@ -233,7 +247,16 @@ class SMGame:
         self.done = False
 
     def guess(self, guess: str) -> str:
+        """
+        Method for taking a turn in the game, the meat and potatoes.
+        Check if the guess follows every required rule, color in the letters, save the result.
+
+        :param guess: Word that is the guess in the current game
+        :return: Result of the guess in string form
+        """
         guess = guess.upper()
+
+        # Simple checks
 
         if self.done:
             return 'Mäng on juba läbi!'
@@ -247,20 +270,25 @@ class SMGame:
         if self.data.dict_check and guess not in self.dictionary:
             return f'{guess} ei esine sõnastikus!'
 
+        # prepare for checking
+
         printable = ''
         letters = list(self.password)
         result = [''] * len(guess)
 
-        prev_known = None
+        # hard mode preparation
+        prev_known = None  # unnecessary, but otherwise there's a warning
         if self.data.hard_mode:
             prev_known = deepcopy(self.known_letters)
 
+        # loop through the guess, color the letters
+
         for i, letter in enumerate(guess):
+            self.known_letters['unknown'].discard(letter)
+
             if self.password[i] == letter:  # right letter, right place
                 result[i] = GREEN
                 letters.remove(letter)
-                self.known_letters['unknown'].discard(letter)
-                self.known_letters['grey'].discard(letter)
                 self.known_letters['yellow'].discard(letter)
                 self.known_letters['green'].add(letter)
 
@@ -272,17 +300,16 @@ class SMGame:
                 result[i] = YELLOW
                 letters.remove(letter)
                 if letter not in self.known_letters['green']:
-                    self.known_letters['unknown'].discard(letter)
-                    self.known_letters['grey'].discard(letter)
                     self.known_letters['yellow'].add(letter)
             else:  # wrong letter
                 result[i] = GREY
-                if letter not in self.known_letters['green'] and letter not in self.known_letters['yellow']:
-                    self.known_letters['unknown'].discard(letter)
+                if letter not in self.known_letters['green'] and \
+                        letter not in self.known_letters['yellow']:
                     self.known_letters['grey'].add(letter)
 
         result = ''.join(result)
 
+        # hard mode check
         if self.data.hard_mode and prev_known:
             green = self.known_letters['green'].copy()
             yellow = self.known_letters['yellow'].copy()
@@ -292,29 +319,37 @@ class SMGame:
                 elif result[i] == YELLOW:
                     yellow.discard(guess[i])
             if green or yellow:
+                # the guess didn't follow the rules, revert the state of the game
                 self.known_letters = prev_known
                 return f'Sinu pakkumises {guess} ei esine {", ".join(green.union(yellow))} korrektselt!'
 
+        # save results of guess
+
         for i, letter in enumerate(result):
+            # save correct letters for /greens command
             if letter == GREEN:
                 self.greens[i] = self.password[i]
+
         self.prev_guesses.append(guess)
         self.prev_results.append(result)
         printable += self.prettify_result(guess) + '\n' + self.prettify_result(result)
         printable += '\n' + self.print_known_letters()
 
         if result == len(self.password) * GREEN:
+            # guess == answer, end the game
             self.done = True
             printable += '\n\n' + self.print_final()
         return printable
 
-    def give_up(self):
+    def give_up(self) -> str:
+        """End the game early and show the answer."""
         if len(self.prev_results) < 6:
             return 'Sa pole veel piisavalt pakkumisi teinud, proovin ikka natuke rohkem.'
         self.done = True
         return self.prettify_result(self.password) + '\n' + self.print_final()
 
     def print_known_letters(self) -> str:
+        """Print best known colors for each letter."""
         printable = f"Tundmatu - {', '.join(sorted(self.known_letters['unknown']))}"
         printable += '\n' + f"{self.prettify_result(GREY)} - {', '.join(sorted(self.known_letters['grey']))}"
         printable += '\n' + f"{self.prettify_result(YELLOW)} - {', '.join(sorted(self.known_letters['yellow']))}"
@@ -322,9 +357,11 @@ class SMGame:
         return printable
 
     def print_greens(self) -> str:
+        """Print the word in a way where all correct letters (greens) are shown."""
         return '`' + ''.join(self.greens) + '`\n' + self.print_known_letters()
 
     def print_history(self) -> str:
+        """Print previously made guesses and their results."""
         printable = ""
         for i in range(len(self.prev_guesses)):
             printable += self.prettify_result(self.prev_guesses[i]) + '\n'
@@ -334,6 +371,7 @@ class SMGame:
         return printable.strip()
 
     def print_final(self) -> str:
+        """Print the final results of the game."""
         printable = f'Sõnam {len(self.prev_guesses)} pakkumisega'
         for result in self.prev_results:
             printable += '\n' + self.prettify_result(result)
@@ -342,6 +380,7 @@ class SMGame:
         return printable
 
     def prettify_result(self, string: str) -> str:
+        """Replace internal color characters with emoji, or surround the message with monospace markers."""
         if self.data.pretty_format:
             return string.replace(GREY, self.data.grey2).replace(YELLOW, self.data.yellow2).replace(GREEN, self.data.green2)
         return '`' + string + '`'  # monospace in Discord
@@ -353,7 +392,11 @@ if __name__ == '__main__':
     game.datas[0] = SMData()
     game.datas[0].pretty_format = False
     # game.datas[0].hard_mode = True
-    print(game.new_game(0, 'eesti-5'))
+    print(game.new_game(0, 'eesti-4'))
     inner_game = game.games[0]
+    password = input('Määra vastus (jäta tühjaks et saada suvaline mäng): ')
+    if len(password) == len(inner_game.password):
+        print('Kasutan etteantud parooli.')
+        inner_game.password = password.upper()
     while not inner_game.done:
         print(inner_game.guess(input('pakkumine: ')))

@@ -35,7 +35,7 @@ vormid
     198 000 rida
 """
 
-all_letters = 'QWERTYUIOPÜÕASDFGHJKLÖÄZXCVBNMŠŽ'
+ALL_LETTERS = 'QWERTYUIOPÜÕASDFGHJKLÖÄZXCVBNMŠŽ'
 
 
 def read_in_wordlist(path: str) -> set:
@@ -69,7 +69,7 @@ def find_all_unused_letters():
 
 def find_unused_letters(words: set):
     """Find which letters are unused compared to all_letters."""
-    letters = set(all_letters)
+    letters = set(ALL_LETTERS)
     for word in words:
         letters = letters.difference(set(word))
     print(''.join(sorted(letters)))
@@ -104,7 +104,7 @@ def filter_wordlist_by_character(words: set, characters_to_remove: set) -> set:
     return words.difference(found)
 
 
-def filter_wordlist_by_length(words: set, lengths: set) -> dict:
+def filter_wordlist_by_length(words: set, lengths: set[int]) -> dict[int, set[str]]:
     """Filter wordlist into smaller lists by word length, keeping only allowed lengths."""
     lists = {}
     for word in words:
