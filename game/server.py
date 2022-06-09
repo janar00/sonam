@@ -76,6 +76,13 @@ Käsud `Manage Channels` õigusega kasutajatele:
 GAME_CHANNELS_PATH = '../discord_data/game_channels.bin'
 TOKEN_PATH = '../discord_data/token.txt'
 
+# Load in secret token for logging in
+if exists(TOKEN_PATH):
+    with open(TOKEN_PATH) as file:
+        token = file.read()
+else:
+    raise FileNotFoundError(TOKEN_PATH + ' puudub, lisa see fail ja pane selle sisuks Discordi bot token')
+
 # Load in list of channels where games can be played
 if exists(GAME_CHANNELS_PATH):
     with open(GAME_CHANNELS_PATH, 'rb') as file:
@@ -83,13 +90,6 @@ if exists(GAME_CHANNELS_PATH):
 else:
     print('Mängukanalite fail puudub, alustan tühja nimekirjaga.')
     game_channels = set()
-
-# Load in secret token for logging in
-if exists(TOKEN_PATH):
-    with open(TOKEN_PATH) as file:
-        token = file.read()
-else:
-    raise FileNotFoundError(TOKEN_PATH + ' puudub, lisa see fail ja pane selle sisuks Discordi bot token')
 
 game = SMOrganizer()
 bot = commands.InteractionBot()

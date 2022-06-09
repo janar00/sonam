@@ -6,7 +6,7 @@ Sõnam ehk rohkem sõna või sõnamäng (ise tead kumb rohkem meeldib)
 on Discordi serveris töötav programm,
 mille abil on võimalik koos sõpradega sõnu ära arvata.
 
-## Sõnam reeglid
+## Mängu reeglid
 Robot valib ühe sõna, mille sina pead ära arvama.\
 Paku õige sõna võimalikult väheste käikudega.
 
@@ -38,7 +38,7 @@ Paku õige sõna võimalikult väheste käikudega.
 ## Sõnade pakid
 
 Selle mänguga on kaasas eestikeelsete sõnade pakid 4-18 täheliste sõnade jaoks.
-Need põhinevad EKI `lemmad.txt` failil.
+Need põhinevad EKI `lemmad2013.txt` failil (vastava litsentsi asukoht: [words/lemmad/litsents.html](words/lemmad/litsents.html)).
 
 ### Uue paki lisamine
 
